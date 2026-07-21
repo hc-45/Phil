@@ -5,6 +5,7 @@
 
 package com.stuypulse.robot.constants;
 
+import com.ctre.phoenix6.configs.ClosedLoopGeneralConfigs;
 import com.ctre.phoenix6.configs.ClosedLoopRampsConfigs;
 import com.ctre.phoenix6.configs.CurrentLimitsConfigs;
 import com.ctre.phoenix6.configs.FeedbackConfigs;
@@ -14,12 +15,18 @@ import com.ctre.phoenix6.configs.OpenLoopRampsConfigs;
 import com.ctre.phoenix6.configs.Slot0Configs;
 import com.ctre.phoenix6.configs.Slot1Configs;
 import com.ctre.phoenix6.configs.Slot2Configs;
+import com.ctre.phoenix6.configs.SlotConfigs;
+import com.ctre.phoenix6.configs.SoftwareLimitSwitchConfigs;
 import com.ctre.phoenix6.configs.TalonFXConfiguration;
+import com.ctre.phoenix6.configs.TorqueCurrentConfigs;
+import com.ctre.phoenix6.configs.VoltageConfigs;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.FeedbackSensorSourceValue;
+import com.ctre.phoenix6.signals.GainSchedBehaviorValue;
 import com.ctre.phoenix6.signals.GravityTypeValue;
 import com.ctre.phoenix6.signals.InvertedValue;
 import com.ctre.phoenix6.signals.NeutralModeValue;
+import com.ctre.phoenix6.signals.StaticFeedforwardSignValue;
 
 /*-
  * File containing all of the configurations that different motors require.
@@ -31,9 +38,11 @@ import com.ctre.phoenix6.signals.NeutralModeValue;
  *  - The Open Loop Ramp Rate
  */
 public interface Motors {
-
     /** Classes to store all of the values a motor needs */
 
+    /**
+     * Wrapper class for configuring TalonFX motors
+     */
     public static class TalonFXConfig {
         private final TalonFXConfiguration configuration = new TalonFXConfiguration();
         private final Slot0Configs slot0Configs = new Slot0Configs();
@@ -45,12 +54,79 @@ public interface Motors {
         private final CurrentLimitsConfigs currentLimitsConfigs = new CurrentLimitsConfigs();
         private final FeedbackConfigs feedbackConfigs = new FeedbackConfigs();
         private final MotionMagicConfigs motionMagicConfigs = new MotionMagicConfigs();
+        private final SoftwareLimitSwitchConfigs softwareLimitSwitchConfigs = new SoftwareLimitSwitchConfigs();
+        private final ClosedLoopGeneralConfigs closedLoopGeneralConfigs = new ClosedLoopGeneralConfigs();
+        private final VoltageConfigs voltageConfigs = new VoltageConfigs();
+        private final TorqueCurrentConfigs torqueCurrentConfigs = new TorqueCurrentConfigs();
+
+        private final double[] lastKP = new double[3];
+        private final double[] lastKI = new double[3];
+        private final double[] lastKD = new double[3];
+        private final double[] lastKS = new double[3];
+        private final double[] lastKV = new double[3];
+        private final double[] lastKA = new double[3];
 
         public void configure(TalonFX motor) {
+            TalonFXConfiguration defaultConfig = new TalonFXConfiguration();
+            motor.getConfigurator().apply(defaultConfig);
+
             motor.getConfigurator().apply(configuration);
         }
 
-        // SLOT 0 CONFIGS
+        public TalonFXConfiguration getConfiguration() {
+            return this.configuration;
+        }
+
+        public void updateGainsConfig(TalonFX motor, int slot, double kP, double kI, double kD, double kS, double kV, double kA) {
+            if (slot != 0 && slot != 1 && slot != 2) {
+                return;
+            }
+
+            boolean changed =
+                kP != lastKP[slot] ||
+                kI != lastKI[slot] ||
+                kD != lastKD[slot] ||
+                kS != lastKS[slot] ||
+                kV != lastKV[slot] ||
+                kA != lastKA[slot];
+
+            if (!changed) {
+                return;
+            }
+
+            SlotConfigs gainConfig = new SlotConfigs()
+                .withKP(kP)
+                .withKI(kI)
+                .withKD(kD)
+                .withKS(kS)
+                .withKV(kV)
+                .withKA(kA);
+
+            gainConfig.SlotNumber = slot;
+
+            motor.getConfigurator().apply(gainConfig);
+
+            lastKP[slot] = kP;
+            lastKI[slot] = kI;
+            lastKD[slot] = kD;
+            lastKS[slot] = kS;
+            lastKV[slot] = kV;
+            lastKA[slot] = kA;
+
+            switch (slot) {
+                case 0:
+                    motor.getConfigurator().refresh(this.getConfiguration().Slot0);
+                    break;
+                case 1:
+                    motor.getConfigurator().refresh(this.getConfiguration().Slot1);
+                    break;
+                case 2:
+                    motor.getConfigurator().refresh(this.getConfiguration().Slot2);
+                    break;
+            }
+        }
+
+        // SLOT CONFIGS
 
         public TalonFXConfig withPIDConstants(double kP, double kI, double kD, int slot) {
             switch (slot) {
@@ -77,7 +153,7 @@ public interface Motors {
         }
 
         public TalonFXConfig withFFConstants(double kS, double kV, double kA, int slot) {
-            return withFFConstants(kS, kV, kA, 0, slot);
+            return withFFConstants(kS, kV, kA, 0.0, slot);
         }
 
         public TalonFXConfig withFFConstants(double kS, double kV, double kA, double kG, int slot) {
@@ -107,6 +183,25 @@ public interface Motors {
             return this;
         }
 
+        public TalonFXConfig withStaticFeedforwardSign(StaticFeedforwardSignValue staticFeedforwardSign, int slot) {
+            switch (slot) {
+                case 0:
+                    slot0Configs.StaticFeedforwardSign = staticFeedforwardSign;
+                    configuration.withSlot0(slot0Configs);
+                    break;
+                case 1:
+                    slot1Configs.StaticFeedforwardSign = staticFeedforwardSign;
+                    configuration.withSlot1(slot1Configs);
+                    break;
+                case 2:
+                    slot2Configs.StaticFeedforwardSign = staticFeedforwardSign;
+                    configuration.withSlot2(slot2Configs);
+                    break;
+            }
+
+            return this;
+        }
+
         public TalonFXConfig withGravityType(GravityTypeValue gravityType) {
             slot0Configs.GravityType = gravityType;
             slot1Configs.GravityType = gravityType;
@@ -115,6 +210,31 @@ public interface Motors {
             configuration.withSlot0(slot0Configs);
             configuration.withSlot1(slot1Configs);
             configuration.withSlot2(slot2Configs);
+
+            return this;
+        }
+
+        public TalonFXConfig withGainSchedBehavior(GainSchedBehaviorValue value, double threshold, int slot) {
+            closedLoopGeneralConfigs.GainSchedErrorThreshold = threshold;
+            configuration.withClosedLoopGeneral(closedLoopGeneralConfigs);
+            
+            switch(slot) {
+                case 0: {
+                    slot0Configs.GainSchedBehavior = value;
+                    configuration.withSlot0(slot0Configs);
+                }
+                break;
+                case 1: {
+                    slot1Configs.GainSchedBehavior = value;
+                    configuration.withSlot1(slot1Configs);
+                }
+                break;
+                case 2: {
+                    slot2Configs.GainSchedBehavior = value;
+                    configuration.withSlot2(slot2Configs);
+                }
+                break;
+            }
 
             return this;
         }
@@ -133,6 +253,14 @@ public interface Motors {
             motorOutputConfigs.NeutralMode = neutralMode;
 
             configuration.withMotorOutput(motorOutputConfigs);
+
+            return this;
+        }
+
+        public TalonFXConfig withVelocityTimeFilter(double filterInSeconds) {
+            feedbackConfigs.withVelocityFilterTimeConstant(filterInSeconds);
+
+            configuration.withFeedback(feedbackConfigs);
 
             return this;
         }
@@ -156,9 +284,9 @@ public interface Motors {
 
         // CURRENT LIMIT CONFIGS
 
-        public TalonFXConfig withCurrentLimitAmps(double currentLimitAmps) {
-			currentLimitsConfigs.StatorCurrentLimit = currentLimitAmps;
-            currentLimitsConfigs.StatorCurrentLimitEnable = true;
+        public TalonFXConfig withLowerLimitSupplyCurrent(double currentLowerLimitAmps, double time) {
+            currentLimitsConfigs.SupplyCurrentLowerLimit = currentLowerLimitAmps;
+            currentLimitsConfigs.SupplyCurrentLowerTime = time;
 
             configuration.withCurrentLimits(currentLimitsConfigs);
 
@@ -170,6 +298,65 @@ public interface Motors {
             currentLimitsConfigs.SupplyCurrentLimitEnable = true;
 
             configuration.withCurrentLimits(currentLimitsConfigs);
+
+            return this;
+        }
+
+        public TalonFXConfig withSupplyCurrentLimitEnabled(boolean enabled) {
+            currentLimitsConfigs.SupplyCurrentLimitEnable = enabled;
+
+            configuration.withCurrentLimits(currentLimitsConfigs);
+
+            return this;
+        }
+
+        public TalonFXConfig withStatorCurrentLimitAmps(double currentLimitAmps) {
+            currentLimitsConfigs.StatorCurrentLimit = currentLimitAmps;
+            currentLimitsConfigs.StatorCurrentLimitEnable = true;
+
+            configuration.withCurrentLimits(currentLimitsConfigs);
+
+            return this;
+        }
+
+        public TalonFXConfig withStatorCurrentLimitEnabled(boolean enabled) {
+            currentLimitsConfigs.StatorCurrentLimitEnable = enabled;
+
+            configuration.withCurrentLimits(currentLimitsConfigs);
+
+            return this;
+        }
+
+        public TalonFXConfig withTorqueCurrentLimits(double peakForwardTorqueCurrent, double peakReverseTorqueCurrent, double neutralTolerance) {
+            torqueCurrentConfigs.PeakForwardTorqueCurrent = peakForwardTorqueCurrent;
+            torqueCurrentConfigs.PeakReverseTorqueCurrent = peakReverseTorqueCurrent;
+            torqueCurrentConfigs.TorqueNeutralDeadband = neutralTolerance;
+
+            configuration.withTorqueCurrent(torqueCurrentConfigs);
+
+            return this;
+        }
+
+        // VOLTAGE LIMIT CONFIGS
+
+        public TalonFXConfig withVoltageLimits(double peakForwardVoltage, double peakReverseVoltage) {
+            voltageConfigs.PeakForwardVoltage = peakForwardVoltage;
+            voltageConfigs.PeakReverseVoltage = peakReverseVoltage;
+
+            configuration.withVoltage(voltageConfigs);
+
+            return this;
+        }
+
+        // SOFTWARE LIMIT CONFIGS
+
+        public TalonFXConfig withSoftLimits(boolean forwardEnable, boolean reverseEnable, double forwardThreshold, double reverseThreshold) {
+            softwareLimitSwitchConfigs.ForwardSoftLimitEnable = forwardEnable;
+            softwareLimitSwitchConfigs.ReverseSoftLimitEnable = reverseEnable;
+            softwareLimitSwitchConfigs.ForwardSoftLimitThreshold = forwardThreshold;
+            softwareLimitSwitchConfigs.ReverseSoftLimitThreshold = reverseThreshold;
+
+            configuration.withSoftwareLimitSwitch(softwareLimitSwitchConfigs);
 
             return this;
         }
