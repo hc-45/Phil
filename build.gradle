@@ -117,7 +117,7 @@ spotless {
         targetExclude("src/main/java/com/stuypulse/robot/commands/autons/*.java")
         
         licenseHeader("""/************************ PROJECT PHIL ************************/
-/* Copyright (c) 2024 StuyPulse Robotics. All rights reserved.*/
+/* Copyright (c) 2026 StuyPulse Robotics. All rights reserved.*/
 /* This work is licensed under the terms of the MIT license.  */
 /**************************************************************/
 """).updateYearWithLatest(false)

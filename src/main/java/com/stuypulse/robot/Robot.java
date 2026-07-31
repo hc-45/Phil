@@ -1,5 +1,5 @@
 /************************ PROJECT PHIL ************************/
-/* Copyright (c) 2024 StuyPulse Robotics. All rights reserved.*/
+/* Copyright (c) 2026 StuyPulse Robotics. All rights reserved.*/
 /* This work is licensed under the terms of the MIT license.  */
 /**************************************************************/
 package com.stuypulse.robot;
@@ -13,9 +13,7 @@ import org.wpilib.framework.TimedRobot;
 import java.util.Optional;
 
 /**
- *
- *
- * <h2>Robot Class</h2>
+ * Robot Class
  *
  * This is the main class for robot code, instantiated in {@link com.stuypulse.robot.Main} It
  * extends TimedRobot, meaning that the methods in this class are called automatically during
